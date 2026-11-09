@@ -1,0 +1,76 @@
+name: Datasets relative archive Image a48c97b8
+on:
+  push:
+    branches: [validation-datasets-relative-image-a48c97b8]
+permissions:
+  contents: read
+jobs:
+  focused:
+    name: Exact Image and WebDataset (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+        working-directory: source
+    env:
+      HF_HUB_OFFLINE: "1"
+      HF_DATASETS_OFFLINE: "1"
+      HF_HUB_DISABLE_IMPLICIT_TOKEN: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      HF_DATASETS_DISABLE_PROGRESS_BARS: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONUNBUFFERED: "1"
+      NO_COLOR: "1"
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: "false"
+    steps:
+      - name: Checkout immutable candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: GoldArowana/datasets
+          ref: e5aaf58e3ce01958df9ffbe5a708c0a6099298ba
+          path: source
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Assert source repository, commit and tree
+        run: |
+          set -euo pipefail
+          test "$(git remote get-url origin)" = "https://github.com/GoldArowana/datasets"
+          test "$(git rev-parse HEAD)" = "e5aaf58e3ce01958df9ffbe5a708c0a6099298ba"
+          test "$(git rev-parse 'HEAD^{tree}')" = "f123b643bd1fede0dfcec9cc2a48a0067c0c59f8"
+          printf 'DATASETS_SOURCE repo=GoldArowana/datasets head=%s tree=%s event=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')" "$GITHUB_SHA"
+          python --version
+          git diff HEAD --exit-code
+      - name: Install normal vision and CPU fixture dependencies
+        run: python -m pip install --no-cache-dir -e '.[vision,quality]' pytest pytest-datadir pytest-xdist polars setuptools
+      - name: Verify exact package import and bootstrap source bytes
+        run: |
+          set -euo pipefail
+          python -c 'from pathlib import Path; import datasets.features.image as m; import PIL, pyarrow; p=Path(m.__file__).resolve(); assert p==Path("src/datasets/features/image.py").resolve(), p; print(p, PIL.__version__, pyarrow.__version__)'
+          git diff HEAD --exit-code
+      - name: Run upstream Image and WebDataset test files
+        run: |
+          set -euo pipefail
+          python -m pytest tests/features/test_image.py tests/packaged_modules/test_webdataset.py -q -ra
+          git diff HEAD --exit-code
+      - name: Run normal repository quality command
+        if: matrix.os == 'ubuntu-latest'
+        run: make quality
+      - name: Always verify unchanged exact source
+        if: always()
+        run: |
+          set -euo pipefail
+          test "$(git remote get-url origin)" = "https://github.com/GoldArowana/datasets"
+          test "$(git rev-parse HEAD)" = "e5aaf58e3ce01958df9ffbe5a708c0a6099298ba"
+          test "$(git rev-parse 'HEAD^{tree}')" = "f123b643bd1fede0dfcec9cc2a48a0067c0c59f8"
+          git diff HEAD --exit-code
+          echo DATASETS_EXACT_TRACKED_SOURCE_UNCHANGED
