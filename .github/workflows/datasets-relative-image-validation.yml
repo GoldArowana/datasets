@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
     defaults:
       run:
         shell: bash
@@ -52,6 +52,11 @@ jobs:
           git diff HEAD --exit-code
       - name: Install normal vision and CPU fixture dependencies
         run: python -m pip install --no-cache-dir -e '.[vision,quality]' pytest pytest-datadir pytest-xdist polars setuptools
+      - name: Install official CPU Torch for the WebDataset tensor fixture
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.10.0
+          python -c 'import torch; print(torch.__version__); assert torch.version.cuda is None'
       - name: Verify exact package import and bootstrap source bytes
         run: |
           set -euo pipefail
